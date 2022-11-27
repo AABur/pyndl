@@ -47,10 +47,8 @@ def sysinfo():
     header = ("Pyndl Information\n"
               "=================\n\n")
 
-    general = ("General Information\n"
-               "-------------------\n"
-               "Python version: {}\n"
-               "Pyndl version: {}\n\n").format(sys.version.split()[0], __version__)
+    general = f"General Information\n-------------------\nPython version: {sys.version.split()[0]}\nPyndl version: {__version__}\n\n"
+
 
     uname = platform.uname()
     osinfo = ("Operating System\n"
@@ -62,12 +60,11 @@ def sysinfo():
     if uname.system == "Linux":
         _, *lines = os.popen("free -m").readlines()
         for identifier in ("Mem:", "Swap:"):
-            memory = [line for line in lines if identifier in line]
-            if len(memory) > 0:
+            if memory := [line for line in lines if identifier in line]:
                 _, total, used, *_ = memory[0].split()
             else:
                 total, used = '?', '?'
-            osinfo += "{} {}MiB/{}MiB\n".format(identifier, used, total)
+            osinfo += f"{identifier} {used}MiB/{total}MiB\n"
 
     osinfo += "\n"
 

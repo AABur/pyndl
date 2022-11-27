@@ -83,7 +83,7 @@ def activation(events, weights, *, n_jobs=1, number_of_threads=None,
     if isinstance(weights, xr.DataArray):
         cues = weights.coords["cues"].values.tolist()
         outcomes = weights.coords["outcomes"].values.tolist()
-        if not weights.values.shape == (len(outcomes), len(cues)):
+        if weights.values.shape != (len(outcomes), len(cues)):
             raise ValueError('dimensions of weights are wrong. Probably you need to transpose the matrix')
         cue_map = OrderedDict(((cue, ii) for ii, cue in enumerate(cues)))
         if ignore_missing_cues:
@@ -165,7 +165,6 @@ def _activation_matrix(indices_list, weights, n_jobs):
         activations = np.empty(activations_dim, dtype=np.float64)
         for row, event_cues in enumerate(indices_list):
             activations[:, row] = weights[:, event_cues].sum(axis=1)
-        return activations
     else:
         shared_activations = mp.RawArray(ctypes.c_double, int(np.prod(activations_dim)))
         weights = np.ascontiguousarray(weights)
@@ -175,4 +174,5 @@ def _activation_matrix(indices_list, weights, n_jobs):
             pool.starmap(_run_mp_activation_matrix, enumerate(indices_list))
         activations = np.ctypeslib.as_array(shared_activations)
         activations.shape = activations_dim
-        return activations
+
+    return activations

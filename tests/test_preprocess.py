@@ -244,10 +244,8 @@ def test_filter_event_file():
                       n_jobs=2,
                       verbose=True)
     _, cue_freq_map, outcome_freq_map = cues_outcomes(output_event_file)
-    cues_new = list(cue_freq_map)
-    cues_new.sort()
-    outcomes_new = list(outcome_freq_map)
-    outcomes_new.sort()
+    cues_new = sorted(cue_freq_map)
+    outcomes_new = sorted(outcome_freq_map)
     assert cues == cues_new
     assert outcomes == outcomes_new
     os.remove(output_event_file)
@@ -256,10 +254,8 @@ def test_filter_event_file():
 def test_write_events():
     event_file = os.path.join(TEST_ROOT, "resources/event_file_trigrams_to_word.tab.gz")
     n_events, cue_freq_map, outcome_freq_map = cues_outcomes(event_file)
-    outcomes = list(outcome_freq_map.keys())
-    outcomes.sort()
-    cues = list(cue_freq_map.keys())
-    cues.sort()
+    outcomes = sorted(outcome_freq_map.keys())
+    cues = sorted(cue_freq_map.keys())
     cue_id_map = {cue: ii for ii, cue in enumerate(cues)}
     outcome_id_map = {outcome: nn for nn, outcome in enumerate(outcomes)}
     events = event_generator(event_file, cue_id_map, outcome_id_map, sort_within_event=True)
@@ -296,10 +292,6 @@ def test_write_events():
         event_bad_file = os.path.join(TEST_ROOT, "resources/event_file_trigrams_to_word_BAD.tab.gz")
         events = event_generator(event_bad_file, cue_id_map,
                                  outcome_id_map)
-        # traverse generator
-        # pylint: disable=W0612
-        for event in events:
-            pass
 
 
 def test_byte_conversion():
@@ -342,10 +334,6 @@ def test_read_binary_file():
         for outcome, bin_outcome in zip(outcomes, bin_outcomes):
             assert outcome_id_map[outcome] == bin_outcome
 
-    # exhaust bin_events generator
-    for _ in bin_events:
-        pass
-
     # clean everything
     os.remove(abs_binary_file_path)
 
@@ -368,11 +356,9 @@ def test_preprocessing():
 
     # reduce number of outcomes through bandsampling
     outcome_freq_map_filtered = bandsample(outcome_freq_map, 50, cutoff=1, seed=None)
-    outcomes = list(outcome_freq_map_filtered.keys())
-    outcomes.sort()
-
+    outcomes = sorted(outcome_freq_map_filtered.keys())
     # filter outcomes by reduced number of outcomes
-    event_file_filtered = event_file + ".filtered"
+    event_file_filtered = f"{event_file}.filtered"
     filter_event_file(event_file, event_file_filtered, keep_outcomes=outcomes)
 
     # clean everything

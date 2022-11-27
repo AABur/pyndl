@@ -15,6 +15,7 @@ have both sides, cues and outcomes, to be continues and calculate the
 Widrow-Hoff learning rule between them.
 
 """
+
 from collections import defaultdict, OrderedDict
 import copy
 import getpass
@@ -40,12 +41,6 @@ from . import ndl
 # conditional import as openmp is only compiled for linux
 if sys.platform.startswith('linux'):
     from . import ndl_openmp
-elif sys.platform.startswith('win32'):
-    pass
-elif sys.platform.startswith('darwin'):
-    pass
-
-
 WeightDict = ndl.WeightDict
 
 
@@ -136,7 +131,7 @@ def wh(events, eta, *, cue_vectors=None, outcome_vectors=None,
                                 remove_duplicates=remove_duplicates, verbose=verbose,
                                 temporary_directory=temporary_directory,
                                 events_per_temporary_file=events_per_temporary_file)
-    elif cue_vectors is not None and outcome_vectors is None:
+    elif cue_vectors is not None:
         lambda_ = 1.0
         betas = (eta, eta)
         return _wh_real_to_binary(events, betas, lambda_, cue_vectors,
@@ -145,7 +140,7 @@ def wh(events, eta, *, cue_vectors=None, outcome_vectors=None,
                                   remove_duplicates=remove_duplicates, verbose=verbose,
                                   temporary_directory=temporary_directory,
                                   events_per_temporary_file=events_per_temporary_file)
-    elif cue_vectors is None and outcome_vectors is not None:
+    else:
         return _wh_binary_to_real(events, eta, outcome_vectors,
                                   method=method, weights=weights, n_jobs=n_jobs,
                                   n_outcomes_per_job=n_outcomes_per_job,
@@ -231,10 +226,7 @@ def dict_wh(events, eta, cue_vectors, outcome_vectors, *,
 
     wall_time_start = time.perf_counter()
     cpu_time_start = time.process_time()
-    if isinstance(events, str):
-        event_path = events
-    else:
-        event_path = ""
+    event_path = events if isinstance(events, str) else ""
     attrs_to_update = None
 
     # weights can be seen as an infinite outcome by cue matrix
@@ -277,9 +269,6 @@ def dict_wh(events, eta, cue_vectors, outcome_vectors, *,
         elif remove_duplicates:
             cues = set(cues)
             outcomes = set(outcomes)
-        else:
-            pass
-
         assert len(outcomes) == 1, 'for real_wh only one outcome is allowed per event'
         assert len(cues) == 1, 'for real_wh only one cue is allowed per event'
 
@@ -384,10 +373,15 @@ def _wh_binary_to_real(events, eta, outcome_vectors, *,
 
     """
 
-    if not (remove_duplicates is None or isinstance(remove_duplicates, bool)):
+    if remove_duplicates is not None and not isinstance(
+        remove_duplicates, bool
+    ):
         raise ValueError("remove_duplicates must be None, True or False")
     if not isinstance(events, str):
-        raise ValueError("'events' need to be the path to a gzipped event file not {}".format(type(events)))
+        raise ValueError(
+            f"'events' need to be the path to a gzipped event file not {type(events)}"
+        )
+
 
     weights_ini = weights
     wall_time_start = time.perf_counter()
@@ -399,7 +393,7 @@ def _wh_binary_to_real(events, eta, outcome_vectors, *,
 
     if not outcome_vectors.data.data.c_contiguous:
         raise ValueError('outcome_vectors have to be c_contiguous')
-    if not outcome_vectors.dtype == np.float64:
+    if outcome_vectors.dtype != np.float64:
         raise ValueError('outcome_vectors have to be of dtype np.float64')
 
     # preprocessing
@@ -426,7 +420,10 @@ def _wh_binary_to_real(events, eta, outcome_vectors, *,
         weights = np.ascontiguousarray(np.zeros(shape, dtype=np.float64, order='C'))
     elif isinstance(weights, xr.DataArray):
         outcome_vector_dimensions = outcome_vectors.coords["outcome_vector_dimensions"].values.tolist()
-        if not outcome_vector_dimensions == weights.coords["outcome_vector_dimensions"].values.tolist():
+        if (
+            outcome_vector_dimensions
+            != weights.coords["outcome_vector_dimensions"].values.tolist()
+        ):
             raise ValueError('Outcome vector dimensions in weights and outcome_vectors do not match!')
 
         old_cues = weights.coords["cues"].values.tolist()
@@ -442,7 +439,10 @@ def _wh_binary_to_real(events, eta, outcome_vectors, *,
 
         del weights_tmp, old_cues, new_cues, outcome_vector_dimensions
     else:
-        raise ValueError('weights need to be None or xarray.DataArray with method=%s' % method)
+        raise ValueError(
+            f'weights need to be None or xarray.DataArray with method={method}'
+        )
+
 
     with tempfile.TemporaryDirectory(prefix="pyndl", dir=temporary_directory) as binary_path:
         number_events = preprocess.create_binary_event_files(events, binary_path, cue_map,
@@ -451,7 +451,7 @@ def _wh_binary_to_real(events, eta, outcome_vectors, *,
                                                              events_per_file=events_per_temporary_file,
                                                              remove_duplicates=remove_duplicates,
                                                              verbose=verbose)
-        assert n_events == number_events, (str(n_events) + ' ' + str(number_events))
+        assert n_events == number_events, f'{str(n_events)} {str(number_events)}'
         binary_files = [os.path.join(binary_path, binary_file)
                         for binary_file in os.listdir(binary_path)
                         if os.path.isfile(os.path.join(binary_path, binary_file))]
@@ -508,11 +508,7 @@ def _wh_binary_to_real(events, eta, outcome_vectors, *,
     cpu_time = cpu_time_stop - cpu_time_start
     wall_time = wall_time_stop - wall_time_start
 
-    if weights_ini is not None:
-        attrs_to_be_updated = weights_ini.attrs
-    else:
-        attrs_to_be_updated = None
-
+    attrs_to_be_updated = weights_ini.attrs if weights_ini is not None else None
     attrs = _attributes(events, number_events, eta, cpu_time, wall_time,
                         __name__ + "." + ndl.__name__, method=method, attrs=attrs_to_be_updated)
 
@@ -577,11 +573,16 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
         ``weights.loc[outcome].loc[cue_vector_dimension]``.
 
     """
-    if not (remove_duplicates is None or isinstance(remove_duplicates, bool)):
+    if remove_duplicates is not None and not isinstance(
+        remove_duplicates, bool
+    ):
         raise ValueError("remove_duplicates must be None, True or False")
 
     if not isinstance(events, str):
-        raise ValueError("'events' need to be the path to a gzipped event file not {}".format(type(events)))
+        raise ValueError(
+            f"'events' need to be the path to a gzipped event file not {type(events)}"
+        )
+
 
     if type(cue_vectors) == dict:
         # TODO: convert dict to xarray here
@@ -589,7 +590,7 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
 
     if not cue_vectors.data.data.c_contiguous:
         raise ValueError('cue_vectors have to be c_contiguous')
-    if not cue_vectors.dtype == np.float64:
+    if cue_vectors.dtype != np.float64:
         raise ValueError('cue_vectors have to be of dtype np.float64')
 
     weights_ini = weights
@@ -615,7 +616,7 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
 
     shape = (len(outcomes), cue_vectors.shape[1])
 
-    if not cue_vectors.dims[1] == 'cue_vector_dimensions':
+    if cue_vectors.dims[1] != 'cue_vector_dimensions':
         raise ValueError("The second dimension of the 'cue_vectors' has to be named 'cue_vector_dimensions'.")
 
     cue_vector_dimensions = cue_vectors['cue_vector_dimensions']
@@ -639,7 +640,10 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
         weights = np.ascontiguousarray(weights_tmp)
         del weights_tmp, old_outcomes, new_outcomes
     else:
-        raise ValueError('weights need to be None or xarray.DataArray with method=%s' % method)
+        raise ValueError(
+            f'weights need to be None or xarray.DataArray with method={method}'
+        )
+
 
     weights = xr.DataArray(weights,
                            coords={'outcomes': outcomes, 'cue_vector_dimensions': cue_vector_dimensions},
@@ -653,7 +657,7 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
                                                              events_per_file=events_per_temporary_file,
                                                              remove_duplicates=remove_duplicates,
                                                              verbose=verbose)
-        assert n_events == number_events, (str(n_events) + ' ' + str(number_events))
+        assert n_events == number_events, f'{str(n_events)} {str(number_events)}'
         binary_files = [os.path.join(binary_path, binary_file)
                         for binary_file in os.listdir(binary_path)
                         if os.path.isfile(os.path.join(binary_path, binary_file))]
@@ -664,23 +668,22 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
         # learning
         if not weights.data.data.c_contiguous:
             raise ValueError('weights has to be c_contiguous')
-        if method == 'openmp':
-            if not sys.platform.startswith('linux'):
-                raise NotImplementedError("OpenMP is linux only at the moment."
-                                          "Use method='threading' instead.")
-            beta1, beta2 = betas
-            ndl_openmp.learn_inplace_real_to_binary(binary_files,
-                                                    beta1,
-                                                    beta2,
-                                                    lambda_,
-                                                    cue_vectors.data,
-                                                    weights.data,
-                                                    n_outcomes_per_job,
-                                                    n_jobs)
-        else:
+        if method != 'openmp':
             # TODO: implement threading
             raise ValueError('TODO: for now: method needs to be "openmp"')
 
+        if not sys.platform.startswith('linux'):
+            raise NotImplementedError("OpenMP is linux only at the moment."
+                                      "Use method='threading' instead.")
+        beta1, beta2 = betas
+        ndl_openmp.learn_inplace_real_to_binary(binary_files,
+                                                beta1,
+                                                beta2,
+                                                lambda_,
+                                                cue_vectors.data,
+                                                weights.data,
+                                                n_outcomes_per_job,
+                                                n_jobs)
         weights = weights.reset_coords(drop=True)
 
     cpu_time_stop = time.process_time()
@@ -688,11 +691,7 @@ def _wh_real_to_binary(events, betas, lambda_, cue_vectors, *,
     cpu_time = cpu_time_stop - cpu_time_start
     wall_time = wall_time_stop - wall_time_start
 
-    if weights_ini is not None:
-        attrs_to_be_updated = weights_ini.attrs
-    else:
-        attrs_to_be_updated = None
-
+    attrs_to_be_updated = weights_ini.attrs if weights_ini is not None else None
     attrs = ndl._attributes(events, number_events, 'cue_vectors', betas, lambda_, cpu_time, wall_time,
                             __name__ + "." + ndl.__name__, method=method, attrs=attrs_to_be_updated)
 
@@ -758,10 +757,15 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
 
     """
 
-    if not (remove_duplicates is None or isinstance(remove_duplicates, bool)):
+    if remove_duplicates is not None and not isinstance(
+        remove_duplicates, bool
+    ):
         raise ValueError("remove_duplicates must be None, True or False")
     if not isinstance(events, str):
-        raise ValueError("'events' need to be the path to a gzipped event file not {}".format(type(events)))
+        raise ValueError(
+            f"'events' need to be the path to a gzipped event file not {type(events)}"
+        )
+
 
     weights_ini = weights
     wall_time_start = time.perf_counter()
@@ -777,12 +781,12 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
 
     if not cue_vectors.data.data.c_contiguous:
         raise ValueError('cue_vectors have to be c_contiguous')
-    if not cue_vectors.dtype == np.float64:
+    if cue_vectors.dtype != np.float64:
         raise ValueError('cue_vectors have to be of dtype np.float64')
 
     if not outcome_vectors.data.data.c_contiguous:
         raise ValueError('outcome_vectors have to be c_contiguous')
-    if not outcome_vectors.dtype == np.float64:
+    if outcome_vectors.dtype != np.float64:
         raise ValueError('outcome_vectors have to be of dtype np.float64')
 
     # preprocessing
@@ -807,9 +811,9 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
 
     shape = (outcome_vectors.shape[1], cue_vectors.shape[1])
 
-    if not outcome_vectors.dims[1] == 'outcome_vector_dimensions':
+    if outcome_vectors.dims[1] != 'outcome_vector_dimensions':
         raise ValueError("The second dimension of the 'outcome_vectors' has to be named 'outcome_vector_dimensions'.")
-    if not cue_vectors.dims[1] == 'cue_vector_dimensions':
+    if cue_vectors.dims[1] != 'cue_vector_dimensions':
         raise ValueError("The second dimension of the 'cue_vectors' has to be named 'cue_vector_dimensions'.")
 
     cue_dims = cue_vectors['cue_vector_dimensions']
@@ -823,7 +827,7 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
                                dims=('outcome_vector_dimensions', 'cue_vector_dimensions'))
         del cue_dims, outcome_dims
     elif isinstance(weights, xr.DataArray):
-        if not weights.shape == shape:
+        if weights.shape != shape:
             raise ValueError("Vector dimensions need to match in continued learning!")
         if not all(outcome_dims == weights['outcome_vector_dimensions']):
             raise ValueError("Outcome vector dimensions names do not match in weights and outcome_vectors")
@@ -834,7 +838,10 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
         weights = weights.loc[{'outcome_vector_dimensions': outcome_dims, 'cue_vector_dimensions': cue_dims}]
         weights = weights.copy()
     else:
-        raise ValueError('weights need to be None or xarray.DataArray with method=%s' % method)
+        raise ValueError(
+            f'weights need to be None or xarray.DataArray with method={method}'
+        )
+
     del shape
 
     if not weights.data.data.c_contiguous:
@@ -860,9 +867,6 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
             elif remove_duplicates:
                 cues = set(cues)
                 outcomes = set(outcomes)
-            else:
-                pass
-
             # TODO: implement multiple cues / outcomes in numpy
             assert len(outcomes) == 1, 'for method=numpy only one outcome is allowed per event'
             assert len(cues) == 1, 'for method_numpy only one cue is allowed per event'
@@ -873,10 +877,10 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
             prediction_vec = weights.dot(cue_vec)  # why is the @ not working?
             error = outcome_vec - prediction_vec
             weights += eta * error * cue_vec  # broadcasted array multiplication
-            # NOTE: we could calculate the same weights first on the first half
-            # of the outcome vector dimensions and then on the second half and
-            # row bind both in the end. Do we? Yes, and we can use this to
-            # multiprocess the numpy computation.
+                    # NOTE: we could calculate the same weights first on the first half
+                    # of the outcome vector dimensions and then on the second half and
+                    # row bind both in the end. Do we? Yes, and we can use this to
+                    # multiprocess the numpy computation.
     elif method in ('openmp', 'threading'):
         with tempfile.TemporaryDirectory(prefix="pyndl", dir=temporary_directory) as binary_path:
             number_events = preprocess.create_binary_event_files(events, binary_path, cue_map,
@@ -885,7 +889,7 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
                                                                  events_per_file=events_per_temporary_file,
                                                                  remove_duplicates=remove_duplicates,
                                                                  verbose=verbose)
-            assert n_events == number_events, (str(n_events) + ' ' + str(number_events))
+            assert n_events == number_events, f'{str(n_events)} {str(number_events)}'
             binary_files = [os.path.join(binary_path, binary_file)
                             for binary_file in os.listdir(binary_path)
                             if os.path.isfile(os.path.join(binary_path, binary_file))]
@@ -893,22 +897,20 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
             binary_files.sort(key=lambda filename: int(os.path.basename(filename)[9:-4]))
             if verbose:
                 print('start learning...')
-            # learning
-            if method == 'openmp':
-                if not sys.platform.startswith('linux'):
-                    raise NotImplementedError("OpenMP is linux only at the moment."
-                                              "Use method='threading' instead.")
-                ndl_openmp.learn_inplace_real_to_real(binary_files,
-                                                      eta,
-                                                      cue_vectors.data,
-                                                      outcome_vectors.data,
-                                                      weights.data,
-                                                      n_outcomes_per_job,
-                                                      n_jobs)
-            else:
+            if method != 'openmp':
                 # TODO: implement threading
                 raise ValueError('TODO: for now: method needs to be "numpy" or "openmp"')
 
+            if not sys.platform.startswith('linux'):
+                raise NotImplementedError("OpenMP is linux only at the moment."
+                                          "Use method='threading' instead.")
+            ndl_openmp.learn_inplace_real_to_real(binary_files,
+                                                  eta,
+                                                  cue_vectors.data,
+                                                  outcome_vectors.data,
+                                                  weights.data,
+                                                  n_outcomes_per_job,
+                                                  n_jobs)
             weights = weights.reset_coords(drop=True)
     else:
         raise ValueError('method needs to be "numpy" or "openmp"')
@@ -918,11 +920,7 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
     cpu_time = cpu_time_stop - cpu_time_start
     wall_time = wall_time_stop - wall_time_start
 
-    if weights_ini is not None:
-        attrs_to_be_updated = weights_ini.attrs
-    else:
-        attrs_to_be_updated = None
-
+    attrs_to_be_updated = weights_ini.attrs if weights_ini is not None else None
     attrs = _attributes(events, number_events, eta, cpu_time, wall_time,
                         __name__ + "." + ndl.__name__, method=method, attrs=attrs_to_be_updated)
 
@@ -934,13 +932,19 @@ def _wh_real_to_real(events, eta, cue_vectors, outcome_vectors, *,
 def _attributes(event_path, number_events, eta, cpu_time,
                 wall_time, function, method=None, attrs=None):
 
-    width = max([len(ss) for ss in (event_path,
-                                    str(number_events),
-                                    str(eta),
-                                    function,
-                                    str(method),
-                                    socket.gethostname(),
-                                    getpass.getuser())])
+    width = max(
+        len(ss)
+        for ss in (
+            event_path,
+            str(number_events),
+            str(eta),
+            function,
+            str(method),
+            socket.gethostname(),
+            getpass.getuser(),
+        )
+    )
+
     width = max(19, width)
 
     def _format(value):
@@ -964,13 +968,7 @@ def _attributes(event_path, number_events, eta, cpu_time,
 
     if attrs is not None:
         for key in set(attrs.keys()) | set(new_attrs.keys()):
-            if key in attrs:
-                old_val = attrs[key]
-            else:
-                old_val = ''
-            if key in new_attrs:
-                new_val = new_attrs[key]
-            else:
-                new_val = ''
+            old_val = attrs[key] if key in attrs else ''
+            new_val = new_attrs[key] if key in new_attrs else ''
             new_attrs[key] = old_val + ' | ' + new_val
     return new_attrs

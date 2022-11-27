@@ -58,7 +58,7 @@ def events_from_file(event_path, compression="gzip", start=0, step=1):
                 cues, outcomes, frequency = entries
             cues = cues.split('_')
             outcomes = outcomes.split('_')
-            for i in range(int(frequency)):
+            for _ in range(int(frequency)):
                 yield (cues, outcomes)
     finally:
         event_file.close()
@@ -108,7 +108,7 @@ def events_to_file(events, file_path, delimiter="\t", compression="gzip",
             warnings.warn(f"events_to_file sets the columns to the legacy names '{legacy_columns}' for ndl2 compatibility.\n"
                            "Remove the warning by setting the columns parameter explicitly to this value.")
             columns = legacy_columns
-        out_file.write("{}\n".format(delimiter.join(columns)))
+        out_file.write(f"{delimiter.join(columns)}\n")
 
         for cues, outcomes in events:
             if isinstance(cues, list) and isinstance(outcomes, list):
@@ -118,9 +118,9 @@ def events_to_file(events, file_path, delimiter="\t", compression="gzip",
                 raise ValueError("cues and outcomes should either be a list or a string.")
 
             if compatible: 
-                line = "{}{}{}{}1\n".format(cues, delimiter, outcomes, delimiter)
+                line = f"{cues}{delimiter}{outcomes}{delimiter}1\n"
             else:
-                line = "{}{}{}\n".format(cues, delimiter, outcomes)
+                line = f"{cues}{delimiter}{outcomes}\n"
 
             out_file.write(line)
     finally:

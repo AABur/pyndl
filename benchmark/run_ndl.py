@@ -30,19 +30,19 @@ for r in range(repeats):
     for file_path in event_dir.glob('*.tab.gz'):
         file_path = str(file_path)
         print(file_path)
-    
+
         _, duration_thread1 = clock(ndl.ndl, (file_path, ALPHA, BETAS, LAMBDA_), n_jobs=1, method='threading')
         print("Threading (single)", duration_thread1)
-    
+
         _, duration_thread4 = clock(ndl.ndl, (file_path, ALPHA, BETAS, LAMBDA_), n_jobs=2, method='threading')
         print("Threading", duration_thread4)
-    
+
         _, duration_omp1 = clock(ndl.ndl, (file_path, ALPHA, BETAS, LAMBDA_), n_jobs=1, method='openmp') 
         print("OpenMP (single)", duration_omp1)
-    
+
         _, duration_omp4 = clock(ndl.ndl, (file_path, ALPHA, BETAS, LAMBDA_), n_jobs=2, method='openmp') 
         print("OpenMP", duration_omp4)
-    
+
         df = pd.concat([df, 
                         pd.DataFrame(
                         {'event_file': [file_path], 

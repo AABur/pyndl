@@ -43,8 +43,8 @@ def test_events_from_dataframe():
 
 def test_events_from_list():
     data_frame = pd.read_csv(FILE_PATH_SIMPLE, sep="\t")
-    event_list = [(cues, outcomes) for cues, outcomes in zip(data_frame['cues'],
-                                                             data_frame['outcomes'])]
+    event_list = list(zip(data_frame['cues'], data_frame['outcomes']))
+
 
     events = io.events_from_list(event_list)
 
@@ -87,11 +87,13 @@ def compare_events(events1, events2):
 
     assert len(events1) == len(events2)
 
-    unequal = list()
+    unequal = [
+        ((cues1, outcomes1), (cues2, outcomes2))
+        for (cues1, outcomes1), (cues2, outcomes2) in zip(events1, events2)
+        if sorted(cues1) != sorted(cues2)
+        or sorted(outcomes1) != sorted(outcomes2)
+    ]
 
-    for (cues1, outcomes1), (cues2, outcomes2) in zip(events1, events2):
-        if sorted(cues1) != sorted(cues2) or sorted(outcomes1) != sorted(outcomes2):
-            unequal.append(((cues1, outcomes1), (cues2, outcomes2)))
 
     unequal_ratio = len(unequal) / len(events1)
     return (unequal, unequal_ratio)

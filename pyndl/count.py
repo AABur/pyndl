@@ -185,6 +185,9 @@ def load_counter(filename):
         for line in dfile:
             key, count = line.strip().split('\t')
             if key in counter.keys():
-                raise ValueError("%s contains two instances (words, symbols, ...) of the same spelling." % filename)
+                raise ValueError(
+                    f"{filename} contains two instances (words, symbols, ...) of the same spelling."
+                )
+
             counter[key] = int(count)
     return counter
