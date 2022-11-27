@@ -25,7 +25,7 @@ preprocess.create_event_file(corpus_file=txt_file,
 
 events = list(io.events_from_file(full_event_file))
 print(f"{len(events)} events")
-for cues, outcome in events[0:3]:
+for cues, outcome in events[:3]:
     print(f"Cues: {cues}, Outcome: {outcome}")
 
 for cues, outcome in events[5554:5557]:

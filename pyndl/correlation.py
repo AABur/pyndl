@@ -7,10 +7,6 @@ from scipy import stats
 
 if sys.platform.startswith('linux'):
     from . import correlation_openmp
-elif sys.platform.startswith('win32'):
-    pass
-elif sys.platform.startswith('darwin'):
-    pass
 
 
 def _reference_correlation(semantics, activations, *, verbose=False):

@@ -45,7 +45,7 @@ def bandsample(population, sample_size=50000, *, cutoff=5, seed=None,
 
     accumulator = 0
     index = 0
-    sample = list()
+    sample = []
     while 0 <= index < len(population):
         word, freq = population[index]
         accumulator += freq
@@ -72,8 +72,7 @@ def bandsample(population, sample_size=50000, *, cutoff=5, seed=None,
             if verbose and index % 1000 == 0:
                 print(".", end="")
                 sys.stdout.flush()
-    sample = collections.Counter({key: value for key, value in sample})
-    return sample
+    return collections.Counter(dict(sample))
 
 
 def ngrams_to_word(occurrences, n_chars, outfile, remove_duplicates=True):
@@ -93,10 +92,7 @@ def ngrams_to_word(occurrences, n_chars, outfile, remove_duplicates=True):
 
     """
     for cues, outcomes in occurrences:
-        if cues and outcomes:
-            occurrence = cues + '_' + outcomes
-        else:  # take either
-            occurrence = cues + outcomes
+        occurrence = f'{cues}_{outcomes}' if cues and outcomes else cues + outcomes
         phrase_string = "#" + re.sub("_", "#", occurrence) + "#"
         ngrams = (phrase_string[i:(i + n_chars)] for i in
                   range(len(phrase_string) - n_chars + 1))
@@ -105,7 +101,7 @@ def ngrams_to_word(occurrences, n_chars, outfile, remove_duplicates=True):
         if remove_duplicates:
             ngrams = set(ngrams)
             occurrence = "_".join(set(occurrence.split("_")))
-        outfile.write("{}\t{}\n".format("_".join(ngrams), occurrence))
+        outfile.write(f'{"_".join(ngrams)}\t{occurrence}\n')
 
 
 def process_occurrences(occurrences, outfile, *,
@@ -137,9 +133,11 @@ def process_occurrences(occurrences, outfile, *,
             if remove_duplicates:
                 cues = "_".join(set(cues.split("_")))
                 outcomes = "_".join(set(outcomes.split("_")))
-            outfile.write("{}\t{}\n".format(cues, outcomes))
+            outfile.write(f"{cues}\t{outcomes}\n")
     else:
-        raise NotImplementedError('cue_structure=%s is not implemented yet.' % cue_structure)
+        raise NotImplementedError(
+            f'cue_structure={cue_structure} is not implemented yet.'
+        )
 
 
 def create_event_file(corpus_file,
@@ -270,13 +268,19 @@ def create_event_file(corpus_file,
             return not_in_symbols.sub(replace, line)
 
     if event_structure not in ('consecutive_words', 'line', 'word_to_word'):
-        raise NotImplementedError('This event structure (%s) is not implemented yet.' % event_structure)
+        raise NotImplementedError(
+            f'This event structure ({event_structure}) is not implemented yet.'
+        )
+
 
     if context_structure not in ('document', 'line'):
-        raise NotImplementedError('This context structure (%s) is not implemented yet.' % context_structure)
+        raise NotImplementedError(
+            f'This context structure ({context_structure}) is not implemented yet.'
+        )
+
 
     if os.path.isfile(event_file):
-        raise OSError('%s file exits. Remove file and start again.' % event_file)
+        raise OSError(f'{event_file} file exits. Remove file and start again.')
 
     context_pattern = re.compile("(---end.of.document---|---END.OF.DOCUMENT---)")
 
@@ -297,7 +301,7 @@ def create_event_file(corpus_file,
 
         """
         if event_structure == 'consecutive_words':
-            occurrences = list()
+            occurrences = []
             # can't have more consecutive words than total words
             length = min(number_of_words, len(words))
             # slide window over list of words
@@ -309,10 +313,8 @@ def create_event_file(corpus_file,
                 # append (cues, outcomes) with empty outcomes
                 occurrences.append(("_".join(words[start:end]), ""))
             return occurrences
-        # for words = (A, B, C, D); before = 2, after = 1
-        # make: (B, A), (A_C, B), (A_B_D, C), (B_C, D)
         elif event_structure == 'word_to_word':
-            occurrences = list()
+            occurrences = []
             for ii, word in enumerate(words):
                 # words before the word to a maximum of before
                 cues = words[max(0, ii - before):ii]
@@ -504,10 +506,7 @@ class JobFilter():
         # no cues left?
         # NOTE: We want to keep events with no outcomes as this is the
         # background for the cues in that events.
-        if not cues:
-            return None
-        processed_line = ("%s\t%s\n" % ("_".join(cues), "_".join(outcomes)))
-        return processed_line
+        return ("%s\t%s\n" % ("_".join(cues), "_".join(outcomes))) if cues else None
 
 
 def filter_event_file(input_event_file, output_event_file, *,
@@ -592,22 +591,24 @@ CURRENT_VERSION = 2048 + 215
 def read_binary_file(binary_file_path):
     with open(binary_file_path, "rb") as binary_file:
         magic_number = to_integer(binary_file.read(4))
-        if not magic_number == MAGIC_NUMBER:
+        if magic_number != MAGIC_NUMBER:
             raise ValueError('Header does not match the magic number')
         version = to_integer(binary_file.read(4))
-        if version == CURRENT_VERSION:
-            pass
-        else:
+        if version != CURRENT_VERSION:
             raise ValueError('Version is incorrectly specified')
 
         nr_of_events = to_integer(binary_file.read(4))
         for _ in range(nr_of_events):
             # Cues
             number_of_cues = to_integer(binary_file.read(4))
-            cue_ids = [to_integer(binary_file.read(4)) for ii in range(number_of_cues)]
+            cue_ids = [to_integer(binary_file.read(4)) for _ in range(number_of_cues)]
             # outcomes
             number_of_outcomes = to_integer(binary_file.read(4))
-            outcome_ids = [to_integer(binary_file.read(4)) for ii in range(number_of_outcomes)]
+            outcome_ids = [
+                to_integer(binary_file.read(4))
+                for _ in range(number_of_outcomes)
+            ]
+
             yield (cue_ids, outcome_ids)
 
 
@@ -694,9 +695,6 @@ def write_events(events, filename, *, start=0, stop=4294967295, remove_duplicate
             elif remove_duplicates:
                 cue_ids = set(cue_ids)
                 outcome_ids = set(outcome_ids)
-            else:
-                pass
-
             # cues in event
             out_file.write(to_bytes(len(cue_ids)))
             for cue_id in cue_ids:
@@ -707,7 +705,7 @@ def write_events(events, filename, *, start=0, stop=4294967295, remove_duplicate
             for outcome_id in outcome_ids:
                 out_file.write(to_bytes(outcome_id))
 
-        if n_events != n_events_estimate and not n_events == 0:
+        if n_events not in [n_events_estimate, 0]:
             # the generator was exhausted earlier
             out_file.seek(8)
             out_file.write(to_bytes(n_events))
@@ -725,10 +723,8 @@ def event_generator(event_file, cue_id_map, outcome_id_map, *, sort_within_event
                  [outcome_id_map[outcome] for outcome in outcomes])
         if sort_within_event:
             cue_ids, outcome_ids = event
-            cue_ids = list(cue_ids)
-            cue_ids.sort()
-            outcome_ids = list(outcome_ids)
-            outcome_ids.sort()
+            cue_ids = sorted(cue_ids)
+            outcome_ids = sorted(outcome_ids)
             event = (cue_ids, outcome_ids)
         yield event
 
@@ -744,8 +740,13 @@ def _job_binary_event_file(*,
                            remove_duplicates):
     # create generator which is not pickable
     events = event_generator(event_file, cue_id_map, outcome_id_map, sort_within_event=sort_within_event)
-    n_events = write_events(events, file_name, start=start, stop=stop, remove_duplicates=remove_duplicates)
-    return n_events
+    return write_events(
+        events,
+        file_name,
+        start=start,
+        stop=stop,
+        remove_duplicates=remove_duplicates,
+    )
 
 
 def create_binary_event_files(event_file,
@@ -803,7 +804,7 @@ def create_binary_event_files(event_file,
             print("create event file folder '%s'" % path_name)
         os.mkdir(path_name, 0o773)
     elif not overwrite:
-        raise IOError("folder %s exists and overwrite is False" % path_name)
+        raise IOError(f"folder {path_name} exists and overwrite is False")
     else:
         if verbose:
             print("removing event files in '%s'" % path_name)
@@ -861,9 +862,7 @@ def create_binary_event_files(event_file,
             ii += 1
             # only start jobs in chunks of 4*n_jobs
             if ii % (n_jobs*4) == 0:
-                while True:
-                    if result.ready():
-                        break
+                while True and not result.ready():
                     time.sleep(1.0)  # check every second
                     if verbose:
                         print('c')

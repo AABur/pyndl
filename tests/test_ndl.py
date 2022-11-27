@@ -79,9 +79,7 @@ def result_continue_learning():
     del events_simple, part_1, part_2
 
     result_part = ndl.ndl(part_path_1, ALPHA, BETAS)
-    result = ndl.ndl(part_path_2, ALPHA, BETAS, weights=result_part)
-
-    return result
+    return ndl.ndl(part_path_2, ALPHA, BETAS, weights=result_part)
 
 
 def test_exceptions():
@@ -125,8 +123,8 @@ def test_exceptions():
         ndl.ndl(FILE_PATH_SIMPLE, ALPHA, BETAS, method='threading', events_per_temporary_file=1)
 
     with pytest.raises(AttributeError, match="weights does not have attributes "
-                       "and no attrs argument is given.") as e_info:
-        ndl.data_array(dict())
+                           "and no attrs argument is given.") as e_info:
+        ndl.data_array({})
 
 #    # Test usually exeeds memory limit; It demands ~32GB of RAM.
 #    with pytest.raises(ValueError, match="Neither number of cues nor outcomes "
@@ -312,19 +310,32 @@ def test_dict_ndl_vs_ndl_openmp(result_dict_ndl, result_ndl_openmp):
 
 @pytest.mark.nolinux
 def test_meta_data(result_dict_ndl, result_dict_ndl_data_array, result_ndl_openmp, result_ndl_threading):
-    attributes = {'cython', 'cpu_time', 'hostname', 'xarray', 'wall_time',
-                  'event_path', 'number_events', 'username', 'method', 'date', 'numpy',
-                  'betas', 'lambda', 'pyndl', 'alpha', 'pandas', 'method',
-                  'function'}
+    attributes = {
+        'cython',
+        'cpu_time',
+        'hostname',
+        'xarray',
+        'wall_time',
+        'event_path',
+        'number_events',
+        'username',
+        'date',
+        'numpy',
+        'betas',
+        'lambda',
+        'pyndl',
+        'alpha',
+        'pandas',
+        'method',
+        'function',
+    }
+
     results = [result_dict_ndl, result_dict_ndl_data_array, result_ndl_threading, result_ndl_openmp]
     for result in results:
         assert set(result.attrs.keys()) == attributes
 
     assert int(result_dict_ndl_data_array.attrs['number_events']) > 0
-    assert len(set(
-        [result.attrs['number_events'].strip()
-         for result in results]
-    )) == 1
+    assert len({result.attrs['number_events'].strip() for result in results}) == 1
 
 
 # Test against external ndl2 results
@@ -355,7 +366,7 @@ def test_compare_weights_ndl2(result_dict_ndl):
                 result_ndl2[outcome][cue] = float(cue_weights[ii])
 
     unequal, unequal_ratio = compare_arrays(FILE_PATH_SIMPLE, result_ndl2, result_dict_ndl)
-    print(set(outcome for outcome, *_ in unequal))
+    print({outcome for outcome, *_ in unequal})
     print('%.2f ratio unequal' % unequal_ratio)
     assert len(unequal) == 0  # pylint: disable=len-as-condition
 
@@ -390,7 +401,7 @@ def test_multiple_cues_dict_ndl_vs_ndl2():
     result_python = ndl.dict_ndl(FILE_PATH_MULTIPLE_CUES, ALPHA, BETAS, remove_duplicates=False)
 
     unequal, unequal_ratio = compare_arrays(FILE_PATH_MULTIPLE_CUES, result_ndl2, result_python)
-    print(set(outcome for outcome, *_ in unequal))
+    print({outcome for outcome, *_ in unequal})
     print('%.2f ratio unequal' % unequal_ratio)
     assert len(unequal) == 0  # pylint: disable=len-as-condition
 
@@ -482,11 +493,11 @@ def compare_arrays(file_path, arr1, arr2):
     _, cues, outcomes = count.cues_outcomes(file_path)
     cue_map, outcome_map, _ = generate_mapping(file_path)
 
-    unequal = list()
+    unequal = []
 
     for outcome in outcomes:
         for cue in cues:
-            values = list()
+            values = []
             for array in (arr1, arr2):
                 if isinstance(array, np.ndarray):
                     outcome_index = outcome_map[outcome]

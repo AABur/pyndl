@@ -5,6 +5,7 @@ pyndl.ndl
 *pyndl.ndl* provides functions in order to train NDL models
 
 """
+
 from collections import defaultdict, OrderedDict
 import copy
 import getpass
@@ -32,12 +33,6 @@ from . import io
 # conditional import as openmp is only compiled for linux
 if sys.platform.startswith('linux'):
     from . import ndl_openmp
-elif sys.platform.startswith('win32'):
-    pass
-elif sys.platform.startswith('darwin'):
-    pass
-
-
 warnings.simplefilter('always', DeprecationWarning)
 
 
@@ -59,10 +54,7 @@ class WeightDict(defaultdict):
 
         self._attrs = OrderedDict()
 
-        if 'attrs' in kwargs:
-            self.attrs = kwargs['attrs']
-        else:
-            self.attrs = {}
+        self.attrs = kwargs.get('attrs', {})
 
     @property
     def attrs(self):
@@ -197,7 +189,10 @@ def ndl(events, alpha, betas, lambda_=1.0, *,
 
         del weights_tmp, old_cues, new_cues, old_outcomes, new_outcomes
     else:
-        raise ValueError('weights need to be None or xarray.DataArray with method=%s' % method)
+        raise ValueError(
+            f'weights need to be None or xarray.DataArray with method={method}'
+        )
+
 
     if any(length > 4294967295 for length in weights.shape):
         raise ValueError("Neither number of cues nor outcomes shall exceed 4294967295 "
@@ -212,7 +207,7 @@ def ndl(events, alpha, betas, lambda_=1.0, *,
                                                              events_per_file=events_per_temporary_file,
                                                              remove_duplicates=remove_duplicates,
                                                              verbose=verbose)
-        assert n_events == number_events, (str(n_events) + ' ' + str(number_events))
+        assert n_events == number_events, f'{str(n_events)} {str(number_events)}'
         binary_files = [os.path.join(binary_path, binary_file)
                         for binary_file in os.listdir(binary_path)
                         if os.path.isfile(os.path.join(binary_path, binary_file))]
@@ -277,11 +272,7 @@ def ndl(events, alpha, betas, lambda_=1.0, *,
     cpu_time = cpu_time_stop - cpu_time_start
     wall_time = wall_time_stop - wall_time_start
 
-    if weights_ini is not None:
-        attrs_to_be_updated = weights_ini.attrs
-    else:
-        attrs_to_be_updated = None
-
+    attrs_to_be_updated = weights_ini.attrs if weights_ini is not None else None
     attrs = _attributes(events, number_events, alpha, betas, lambda_, cpu_time, wall_time,
                         __name__ + "." + ndl.__name__, method=method, attrs=attrs_to_be_updated)
 
@@ -293,20 +284,22 @@ def ndl(events, alpha, betas, lambda_=1.0, *,
 
 def _attributes(event_path, number_events, alpha, betas, lambda_, cpu_time,
                 wall_time, function, method=None, attrs=None):
-    if not isinstance(alpha, (float, int)):
-        alpha_str = 'varying'
-    else:
-        alpha_str = str(alpha)
+    alpha_str = str(alpha) if isinstance(alpha, (float, int)) else 'varying'
+    width = max(
+        len(ss)
+        for ss in (
+            event_path,
+            str(number_events),
+            str(alpha),
+            str(betas),
+            str(lambda_),
+            function,
+            str(method),
+            socket.gethostname(),
+            getpass.getuser(),
+        )
+    )
 
-    width = max([len(ss) for ss in (event_path,
-                                    str(number_events),
-                                    str(alpha),
-                                    str(betas),
-                                    str(lambda_),
-                                    function,
-                                    str(method),
-                                    socket.gethostname(),
-                                    getpass.getuser())])
     width = max(19, width)
 
     def _format(value):
@@ -332,14 +325,8 @@ def _attributes(event_path, number_events, alpha, betas, lambda_, cpu_time,
 
     if attrs is not None:
         for key in set(attrs.keys()) | set(new_attrs.keys()):
-            if key in attrs:
-                old_val = attrs[key]
-            else:
-                old_val = ''
-            if key in new_attrs:
-                new_val = new_attrs[key]
-            else:
-                new_val = ''
+            old_val = attrs[key] if key in attrs else ''
+            new_val = new_attrs[key] if key in new_attrs else ''
             new_attrs[key] = old_val + ' | ' + new_val
     return new_attrs
 
@@ -406,10 +393,7 @@ def dict_ndl(events, alphas, betas, lambda_=1.0, *,
 
     wall_time_start = time.perf_counter()
     cpu_time_start = time.process_time()
-    if isinstance(events, str):
-        event_path = events
-    else:
-        event_path = ""
+    event_path = events if isinstance(events, str) else ""
     attrs_to_update = None
 
     # weights can be seen as an infinite outcome by cue matrix
@@ -457,9 +441,6 @@ def dict_ndl(events, alphas, betas, lambda_=1.0, *,
         elif remove_duplicates:
             cues = set(cues)
             outcomes = set(outcomes)
-        else:
-            pass
-
         all_outcomes.update(outcomes)
         for outcome in all_outcomes:
             association_strength = sum(weights[outcome][cue] for cue in cues)
@@ -559,9 +540,9 @@ def slice_list(list_, len_sublists):
         raise ValueError("'len_sublists' must be larger then one")
     assert len(list_) == len(set(list_))
     ii = 0
-    seq_list = list()
+    seq_list = []
     while ii < len(list_):
         seq_list.append(list_[ii:ii + len_sublists])
-        ii = ii + len_sublists
+        ii += len_sublists
 
     return seq_list

@@ -250,7 +250,7 @@ def compare_arrays(file_path, arr1, arr2):
     _, cues, outcomes = count.cues_outcomes(file_path)
     cue_map, outcome_map, _ = generate_mapping(file_path)
 
-    unequal = list()
+    unequal = []
 
     if isinstance(arr1, xr.DataArray):
         outcome_dim_name, cue_dim_name = arr1.dims
@@ -262,7 +262,7 @@ def compare_arrays(file_path, arr1, arr2):
 
     for outcome in outcomes:
         for cue in cues:
-            values = list()
+            values = []
             for array in (arr1, arr2):
                 if isinstance(array, np.ndarray):
                     outcome_index = outcome_map[outcome]

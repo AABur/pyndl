@@ -91,12 +91,9 @@ def read_clean_gzfile(gz_file_path, *, break_duration=2.0):
                 if (tag_type == 'S' and
                         current_time - last_time > break_duration):
                     result = '\n' + result
-                # end
                 elif tag_type == 'E':
                     last_time = current_time
-                elif tag_type == 'S':
-                    pass
-                else:
+                elif tag_type != 'S':
                     raise ValueError("tag_type '%s' is not 'S' or 'E'" %
                                      tag_type)
 
@@ -148,8 +145,7 @@ def create_corpus_from_gz(directory, outfile, *, n_threads=1, verbose=False):
     if not os.path.isdir(directory):
         raise OSError("%s does not exist.")
     if os.path.isfile(outfile):
-        raise OSError("%s exists. Please <outfile> needs to be new file name."
-                      % outfile)
+        raise OSError(f"{outfile} exists. Please <outfile> needs to be new file name.")
 
     if verbose:
         print("Walk through '%s' and read in all file names..." % directory)
@@ -161,14 +157,12 @@ def create_corpus_from_gz(directory, outfile, *, n_threads=1, verbose=False):
     if verbose:
         print("Start processing %i files." % len(gz_files))
         start_time = time.time()
-    not_founds = list()
+    not_founds = []
     with multiprocessing.Pool(n_threads) as pool:
         with open(outfile, "wt") as result_file:
-            progress_counter = 0
             n_files = len(gz_files)
             job = JobParseGz(break_duration=5.0)
-            for lines, not_found in pool.imap(job.run, gz_files):
-                progress_counter += 1
+            for progress_counter, (lines, not_found) in enumerate(pool.imap(job.run, gz_files), start=1):
                 if verbose and progress_counter % 1000 == 0:
                     print("%i%% " % (progress_counter / n_files * 100), end="")
                     sys.stdout.flush()
@@ -187,7 +181,10 @@ def create_corpus_from_gz(directory, outfile, *, n_threads=1, verbose=False):
               (duration, duration // (60 * 60), duration // 60))
 
     if not_founds:
-        file_name = io.safe_write_path(outfile + ".not_found", template='{path}-{counter}')
+        file_name = io.safe_write_path(
+            f"{outfile}.not_found", template='{path}-{counter}'
+        )
+
 
         with open(file_name, "wt") as not_found_file:
             not_found_file.writelines(not_founds)
